@@ -265,178 +265,178 @@ public:
 // Constructing the flag register
 FlagRegister *flag = new FlagRegister();
 
+/*
+    Contains the elements required in executing
+    logic units.
+    None of the operations require registers, their values
+    are accessable from integrated programming requests.
+*/
+class LogicUnit {
+public:
+    char AND(char a, char b) {
+        return (char)a & b;
+    }
+
+    char OR(char a, char b) {
+        return (char)a | b;
+    }
+
+    char XOR(char a, char b) {
+        return (char)a ^ b;
+    }
+
+    char COMP(char a) {
+        return (char)~a;
+    }
+} LU;
+
+/*
+    Contains the elements required in executing
+    the arithmetic operations.
+    Operations are based on Registers and push and pull
+    their values onto a Stack.
+*/
+class ArithmeticUnit {
+public:
+    char ADD_W_CARRY(char a, char b) {
+        // Temp register
+        alpha->push(A->getValue());
+
+        if (flag->getCarry()) {
+            B->loadRegister(ADD(a, b) + 1);
+        }
+        else {
+            B->loadRegister(ADD(a, b));
+        }
+
+        // Store result into temp var memory
+        B->storeRegister(10);
+        B->loadRegister(alpha->pop());
+
+        return MAIN_MEMORY[10];
+    }
+
+    char INC(char a) {
+        return a++;
+    }
+
+    char SUB(char a, char b) {
+        alpha->push(A->getValue());
+        alpha->push(B->getValue());
+        alpha->push(C->getValue());
+
+        A->loadRegister(a);
+
+        // 1's compliment
+        C->loadRegister(LU.COMP(b));
+        // 2's compliment
+        B->loadRegister(C->getValue() + 1);
+
+        A->loadRegister(ADD(A->getValue(), B->getValue()));
+
+        A->storeRegister(10);
+
+        C->loadRegister(alpha->pop());
+        B->loadRegister(alpha->pop());
+        A->loadRegister(alpha->pop());
+
+        return MAIN_MEMORY[10];
+    }
+
+    char ADD(char a, char b) {
+        bool c_1 = false;
+        bool carry = false;
+        bool negative = false;
+        bool zero = false;
+
+        // Push register before executing addition
+        alpha->push(A->getValue());
+        alpha->push(B->getValue());
+        alpha->push(C->getValue());
+        alpha->push(D->getValue());
+        alpha->push(E->getValue());
+
+        // Load registers with high bits
+        A->loadRegister(a & 0x80);
+        B->loadRegister(b & 0x80);
+
+        // Load registers with low bits
+        C->loadRegister(a & 0x7F);
+        D->loadRegister(b & 0x7F);
+
+        // Add lower bits
+        C->loadRegister(C->getValue() + D->getValue());
+
+        // Get carry of c(n - 1)
+        if ((C->getValue() & 0x80) == 0x80) {
+            c_1 = true;
+        }
+
+        cout << "C_1 is " << c_1 << ", C->getValue()" << (int) C->getValue() << endl;
+
+        // Push result so C can be used again
+        alpha->push(C->getValue());
+
+        C->loadRegister(C->getValue() & 0x80);
+
+        cout << "A: " << (int)A->getValue() << ", B: " << (int)B->getValue() << ", C: " << (int)C->getValue() << endl;
+
+        C->shiftRight();
+
+        // Add higher bit
+        A->shiftRight();
+        B->shiftRight();
+
+        cout << "A: " << (int)A->getValue() << ", B: " << (int)B->getValue() << ", C: " << (int)C->getValue() << endl;
+
+        A->loadRegister(A->getValue() + B->getValue() + C->getValue());
+
+        // Test if there is a carry out
+        if ((A->getValue() & 0x80) == 0x80) {
+            carry = true;
+        }
+
+        cout << "CARRY is " << carry << ", A VAL: " << (int)A->getValue() << endl;
+        
+        E->loadRegister(A->getValue());
+        // Get rid of Carry
+        E->shiftLeft();
+
+        // Load and get rid of highest bit
+        C->loadRegister(alpha->pop() & 0x7F);
+
+        A->loadRegister(E->getValue() + C->getValue());
+
+        // Memory for temp variables starts at 10
+        A->storeRegister(10);
+        
+        // Set flags based on registers
+        if ((A->getValue() & 0x80) == 0x80) {
+            negative = true;
+        }
+
+        if (A->getValue() == 0) {
+            zero = true;
+        }
+
+        E->loadRegister(alpha->pop());
+        D->loadRegister(alpha->pop());
+        C->loadRegister(alpha->pop());
+        B->loadRegister(alpha->pop());
+        A->loadRegister(alpha->pop());
+
+        flag->setCarry(carry);
+        flag->setNegative(negative);
+        flag->setOverflow(carry ^ c_1);
+        flag->setZero(zero);
+
+        return MAIN_MEMORY[10];
+    }
+} AU;
+
 // Class which contains both AU and LU
 class ArithmeticLogicUnit {
 public:
-    /*
-        Contains the elements required in executing
-        logic units.
-        None of the operations require registers, their values
-        are accessable from integrated programming requests.
-    */
-    class LogicUnit {
-    public:
-        char AND(char a, char b) {
-            return (char)a & b;
-        }
-
-        char OR(char a, char b) {
-            return (char)a | b;
-        }
-
-        char XOR(char a, char b) {
-            return (char)a ^ b;
-        }
-
-        char COMP(char a) {
-            return (char)~a;
-        }
-    } LU;
-
-    /*
-        Contains the elements required in executing
-        the arithmetic operations.
-        Operations are based on Registers and push and pull
-        their values onto a Stack.
-    */
-    class ArithmeticUnit {
-    public:
-        char ADD_W_CARRY(char a, char b) {
-            // Temp register
-            alpha->push(A->getValue());
-
-            if (flag->getCarry()) {
-                B->loadRegister(ADD(a, b) + 1);
-            }
-            else {
-                B->loadRegister(ADD(a, b));
-            }
-
-            // Store result into temp var memory
-            B->storeRegister(10);
-            B->loadRegister(alpha->pop());
-
-            return MAIN_MEMORY[10];
-        }
-
-        char INC(char a) {
-            return a++;
-        }
-
-        char SUB(char a, char b) {
-            alpha->push(A->getValue());
-            alpha->push(B->getValue());
-            alpha->push(C->getValue());
-
-            A->loadRegister(a);
-
-            // 1's compliment
-            C->loadRegister(LU.COMP(b));
-            // 2's compliment
-            B->loadRegister(C->getValue() + 1);
-
-            A->loadRegister(ADD(A->getValue(), B->getValue()));
-
-            A->storeRegister(10);
-
-            C->loadRegister(alpha->pop());
-            B->loadRegister(alpha->pop());
-            A->loadRegister(alpha->pop());
-
-            return MAIN_MEMORY[10];
-        }
-
-        char ADD(char a, char b) {
-            bool c_1 = false;
-            bool carry = false;
-            bool negative = false;
-            bool zero = false;
-
-            // Push register before executing addition
-            alpha->push(A->getValue());
-            alpha->push(B->getValue());
-            alpha->push(C->getValue());
-            alpha->push(D->getValue());
-            alpha->push(E->getValue());
-
-            // Load registers with high bits
-            A->loadRegister(a & 0x80);
-            B->loadRegister(b & 0x80);
-
-            // Load registers with low bits
-            C->loadRegister(a & 0x7F);
-            D->loadRegister(b & 0x7F);
-
-            // Add lower bits
-            C->loadRegister(C->getValue() + D->getValue());
-
-            // Get carry of c(n - 1)
-            if ((C->getValue() & 0x80) == 0x80) {
-                c_1 = true;
-            }
-
-            cout << "C_1 is " << c_1 << ", C->getValue()" << (int) C->getValue() << endl;
-
-            // Push result so C can be used again
-            alpha->push(C->getValue());
-
-            C->loadRegister(C->getValue() & 0x80);
-
-            cout << "A: " << (int)A->getValue() << ", B: " << (int)B->getValue() << ", C: " << (int)C->getValue() << endl;
-
-            C->shiftRight();
-
-            // Add higher bit
-            A->shiftRight();
-            B->shiftRight();
-
-            cout << "A: " << (int)A->getValue() << ", B: " << (int)B->getValue() << ", C: " << (int)C->getValue() << endl;
-
-            A->loadRegister(A->getValue() + B->getValue() + C->getValue());
-
-            // Test if there is a carry out
-            if ((A->getValue() & 0x80) == 0x80) {
-                carry = true;
-            }
-
-            cout << "CARRY is " << carry << ", A VAL: " << (int)A->getValue() << endl;
-            
-            E->loadRegister(A->getValue());
-            // Get rid of Carry
-            E->shiftLeft();
-
-            // Load and get rid of highest bit
-            C->loadRegister(alpha->pop() & 0x7F);
-
-            A->loadRegister(E->getValue() + C->getValue());
-
-            // Memory for temp variables starts at 10
-            A->storeRegister(10);
-            
-            // Set flags based on registers
-            if ((A->getValue() & 0x80) == 0x80) {
-                negative = true;
-            }
-
-            if (A->getValue() == 0) {
-                zero = true;
-            }
-
-            E->loadRegister(alpha->pop());
-            D->loadRegister(alpha->pop());
-            C->loadRegister(alpha->pop());
-            B->loadRegister(alpha->pop());
-            A->loadRegister(alpha->pop());
-
-            flag->setCarry(carry);
-            flag->setNegative(negative);
-            flag->setOverflow(carry ^ c_1);
-            flag->setZero(zero);
-
-            return MAIN_MEMORY[10];
-        }
-    } AU;
-    
     /**
     Used to map the ALU operation to either AU or LU
     */
